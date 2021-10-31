@@ -1,77 +1,20 @@
 import re
+from threading import Timer
 
 from environs import Env
 import telebot
 
 env = Env()
 env.read_env()
+
 bot = telebot.TeleBot(env('bot_token'))
-admins = env.list('admins')
+restricted: set = set(env.list('restricted', default=['url', 'tag', 'photo', 'document', 'voice']))
+greeting_text = env('greeting_text')
+greeting_video = env('greeting_video', default=None)
+greeting_timeout = env.int('greeting_timeout', default=60)
 
-
-class IsAdmin(telebot.custom_filters.SimpleCustomFilter):
-    # Class will check whether the user is admin or creator in group or not
-    key = 'is_admin'
-
-    @staticmethod
-    def check(message: telebot.types.Message):
-        return bot.get_chat_member(message.chat.id, message.from_user.id).status in ['administrator', 'creator']
-
-
-bot.add_custom_filter(IsAdmin())
-
-
-@bot.message_handler(commands=['help', 'start'])
-def send_welcome(message):
-    bot.reply_to(message, """\
-Hi there, I am EchoBot.
-I am here to echo your kind words back to you. Just say anything nice and I'll say the exact same thing to you!\
-""")
-
-
-@bot.message_handler(content_types=['left_chat_member'])
-def delete_leave_message(m):
-    """Пользователь покинул группу"""
-    print('delete_leave_message')
-    if m.left_chat_member.id != bot.get_me().id:
-        try:
-            bot.delete_message(m.chat.id, m.message_id)
-        except:
-            bot.send_message(m.chat.id, "Please make me an admin")
-
-
-@bot.message_handler(content_types=['new_chat_members'])
-def delete_join_message(m):
-    """Новый пользователь в группе"""
-    print('delete_join_message')
-    try:
-        bot.delete_message(m.chat.id, m.message_id)
-    except:
-        if m.new_chat_member.id != bot.get_me().id:
-            bot.send_message(m.chat.id, "Please make me an admin")
-        else:
-            bot.send_message(m.chat.id, "Hi! I am your trusty GroupSilencer Bot!")
-
-
-# Handle all other messages with content_type 'text' (content_types defaults to ['text'])
-@bot.message_handler(func=lambda message: True)
-def text_message(message):
-    """Текстовое сообщение"""
-    """
-    if message.chat.type == "private":
-	# private chat message
-
-if message.chat.type == "group":
-	# group chat message
-
-if message.chat.type == "supergroup":
-	# supergroup chat message
-
-if message.chat.type == "channel":
-	# channel message
-    """
-    print('text_message')
-    regex = r"\b((?:https?://)?(?:(?:www\.)?" \
+tag_regex = "@[a-zA-Z]"
+url_regex = r"\b((?:https?://)?(?:(?:www\.)?" \
             r"(?:[\da-z\.-]+)\.(?:[a-z]{2,6})|(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}" \
             r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|" \
             r"(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}" \
@@ -83,28 +26,58 @@ if message.chat.type == "channel":
             r"(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:" \
             r"(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])))" \
             r"(?::[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])?(?:/[\w\.-]*)*/?)\b"
-    text = message.text
-    if re.search(regex, text):
+
+
+@bot.message_handler(content_types=['left_chat_member'])
+def delete_leave_message(m):
+    if m.left_chat_member.id != bot.get_me().id:
+        try:
+            # удаляем сообщение о выходе
+            bot.delete_message(m.chat.id, m.message_id)
+        except:
+            bot.send_message(m.chat.id, "Please make me an admin")
+
+
+@bot.message_handler(content_types=['new_chat_members'])
+def delete_join_message(message):
+    """Новый пользователь в группе"""
+    greeting = greeting_text.format(username=message.from_user.full_name)
+    chat_id = message.chat.id
+    try:
+        # удаляем сообщение о вступлении
+        bot.delete_message(chat_id, message.message_id)
+        if greeting_video:
+            msg = bot.send_video(chat_id, greeting_video, caption=greeting)
+        else:
+            msg = bot.send_message(chat_id, text=greeting)
+        t = Timer(greeting_timeout, bot.delete_message, args=[msg.chat.id, msg.message_id])
+        t.start()
+    except Exception as exc:
+        print(exc)
+
+
+def is_admin(message):
+    return bot.get_chat_member(message.chat.id, message.from_user.id).status in ['administrator', 'creator']
+
+"""
+content_types:
+text, audio, document, photo, sticker, video, video_note, voice, location, contact, new_chat_members, 
+left_chat_member, new_chat_title, new_chat_photo, delete_chat_photo, group_chat_created, supergroup_chat_created, 
+channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, pinned_message
+"""
+@bot.message_handler(func=lambda message: True, content_types=['audio', 'photo', 'voice', 'video', 'document',
+                                                               'text', 'location', 'contact', 'sticker'])
+def message(message):
+    if is_admin(message):
+        return
+    # print(message.content_type)
+    if (
+            'url' in restricted and message.text and re.search(url_regex, message.text)
+            or 'tag' in restricted and message.text and re.search(tag_regex, message.text)
+            or message.content_type in restricted - {'url', 'tag'}
+    ):
         bot.delete_message(message.chat.id, message.message_id)
-        # bot.send_message(message.chat.id, "Ссылки запрещены!")
-
-
-@bot.channel_post_handler(is_admin=False)
-def channel_message(message):
-    """Сообщение в канале"""
-    print('channel_message')
-    text = message.text
-    bot.reply_to(message, message.text)
-
-
-@bot.message_handler()
-def chat_message(message):
-    """Сообщение в группе"""
-    print('chat_message')
-    text = message.text
-    bot.reply_to(message, message.text)
 
 
 if __name__ == '__main__':
-    """Start bot"""
     bot.infinity_polling()
