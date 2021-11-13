@@ -88,17 +88,49 @@ def is_admin(message):
     return bot.get_chat_member(message.chat.id, message.from_user.id).status in ['administrator', 'creator']
 
 
-"""
-content_types:
-text, audio, document, photo, sticker, video, video_note, voice, location, contact, new_chat_members, 
-left_chat_member, new_chat_title, new_chat_photo, delete_chat_photo, group_chat_created, supergroup_chat_created, 
-channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, pinned_message
-"""
+def add_chat(message):
+    text: str = message.text
+    if text.isdigit():
+        settings[text] = default
+        msg = bot.reply_to(message, f'Чат {text} добавлен, не забудьте сохранить настройки')
+    else:
+        msg = bot.reply_to(message, 'Неверный id чата')
+    bot.register_next_step_handler(message, private_message)
+
+
+def add_admin(message):
+    text: str = message.text
+    if text.isdigit():
+        settings['admins'].append(text)
+        msg = bot.reply_to(message, f'Админ {text} добавлен, не забудьте сохранить настройки')
+    else:
+        msg = bot.reply_to(message, 'Неверный id админа')
+    bot.register_next_step_handler(msg, private_message)
+
+
+def proceed_admin(message):
+    if message.text == 'Добавить админа':
+        msg = bot.reply_to(message, 'Введите id админа')
+        bot.register_next_step_handler(msg, add_admin)
+    else:
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add('Удалить', 'Назад')
+        msg = bot.reply_to(message, f'Настройка админа {message.text}', reply_markup=markup)
 
 
 def proceed_settings(message):
     if message.text == 'admins':
-        ...
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add(*settings.get('admins', []))
+        msg = bot.reply_to(message, 'Добавить админа', reply_markup=markup)
+        bot.register_next_step_handler(msg, proceed_admin)
+    elif message.text == 'Добавить чат':
+        msg = bot.reply_to(message, 'Введите id чата')
+        bot.register_next_step_handler(msg, add_chat)
+    elif message.text == 'Сохранить настройки':
+        save_settings()
+        msg = bot.reply_to(message, 'Настройки сохранены')
+        bot.register_next_step_handler(msg, private_message)
     else:
         ...
 
@@ -108,11 +140,19 @@ def private_message(message):
     if message.from_user.id in admins:
         # https://ru.stackoverflow.com/questions/1062669/%D0%95%D1%81%D1%82%D1%8C-%D0%BB%D0%B8-%D1%83-pytelegrambotapi-%D0%B0%D0%BD%D0%B0%D0%BB%D0%BE%D0%B3-conversationhandler-%D0%B8%D0%B7-python-telegram-bot
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*settings.keys())
-        msg = bot.reply_to(message, 'Выберите настройку', reply_markup=markup)
+        markup.add(*settings.keys(), 'Добавить чат', 'Сохранить настройки')
+        msg = bot.send_message(message.chat.id, 'Выберите настройку', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_settings)
     else:
-        bot.send_message(message.chat_id, text='You are not an admin')
+        bot.send_message(message.chat_id, 'You are not an admin')
+
+
+"""
+content_types:
+text, audio, document, photo, sticker, video, video_note, voice, location, contact, new_chat_members, 
+left_chat_member, new_chat_title, new_chat_photo, delete_chat_photo, group_chat_created, supergroup_chat_created, 
+channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, pinned_message
+"""
 
 
 @bot.message_handler(func=lambda message: True, content_types=['audio', 'photo', 'voice', 'video', 'document',
