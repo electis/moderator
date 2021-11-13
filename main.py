@@ -4,6 +4,7 @@ from threading import Timer
 
 from environs import Env
 import telebot
+from telebot import types
 
 env = Env()
 env.read_env()
@@ -12,12 +13,14 @@ settings = {
     '-1001749011309': dict(greeting_text="Здравствуй {username}, очень рады тебя приветствовать в нашем чате.",
                            greeting_video='https://telegra.ph/file/4a150e0856f8c20ca65ea.mp4',
                            greeting_timeout=10),
+    'admins': ['403662105']
 }
 default = dict(
     greeting_text=env('greeting_text'),
     greeting_video=env('greeting_video', default=None),
     greeting_timeout=env.int('greeting_timeout', default=60),
 )
+main_admin = env.int('main_admin', default=None)
 restricted: set = set(env.list('restricted', default=['url', 'tag', 'photo', 'document', 'voice']))
 bot = telebot.TeleBot(env('bot_token'))
 
@@ -38,8 +41,11 @@ url_regex = r"\b((?:https?://)?(?:(?:www\.)?" \
 
 def reload_settings():
     global settings
-    with open('settings.json') as file:
-        settings = json.loads(file.read())
+    try:
+        with open('settings.json') as file:
+            settings = json.loads(file.read())
+    except FileNotFoundError:
+        settings = dict(admins=[])
 
 
 def save_settings():
@@ -90,14 +96,32 @@ channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, pinned_message
 """
 
 
+def proceed_settings(message):
+    if message.text == 'admins':
+        ...
+    else:
+        ...
+
+
+def private_message(message):
+    admins = settings.get('admins', []) + [main_admin]
+    if message.from_user.id in admins:
+        # https://ru.stackoverflow.com/questions/1062669/%D0%95%D1%81%D1%82%D1%8C-%D0%BB%D0%B8-%D1%83-pytelegrambotapi-%D0%B0%D0%BD%D0%B0%D0%BB%D0%BE%D0%B3-conversationhandler-%D0%B8%D0%B7-python-telegram-bot
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add(*settings.keys())
+        msg = bot.reply_to(message, 'Выберите настройку', reply_markup=markup)
+        bot.register_next_step_handler(msg, proceed_settings)
+    else:
+        bot.send_message(message.chat_id, text='You are not an admin')
+
+
 @bot.message_handler(func=lambda message: True, content_types=['audio', 'photo', 'voice', 'video', 'document',
                                                                'text', 'location', 'contact', 'sticker'])
 def message(message):
-    print(message.chat.id)
-    if is_admin(message):
-        return
-    # print(message.content_type)
-    if (
+    print(message.chat.id, message.content_type)
+    if message.chat.id > 0:
+        private_message(message)
+    elif not is_admin(message) and (
             'url' in restricted and message.text and re.search(url_regex, message.text)
             or 'tag' in restricted and message.text and re.search(tag_regex, message.text)
             or message.content_type in restricted - {'url', 'tag'}
