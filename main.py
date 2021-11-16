@@ -1,5 +1,5 @@
-import re
 import json
+import re
 from threading import Timer
 
 from environs import Env
@@ -39,20 +39,6 @@ url_regex = r"\b((?:https?://)?(?:(?:www\.)?" \
             r"(?::[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])?(?:/[\w\.-]*)*/?)\b"
 
 
-def reload_settings():
-    global settings
-    try:
-        with open('settings.json') as file:
-            settings = json.loads(file.read())
-    except FileNotFoundError:
-        settings = dict(admins=[])
-
-
-def save_settings():
-    with open('settings.json', 'w') as file:
-        file.write(json.dumps(settings))
-
-
 @bot.message_handler(content_types=['left_chat_member'])
 def delete_leave_message(m):
     if m.left_chat_member.id != bot.get_me().id:
@@ -88,6 +74,20 @@ def is_admin(message):
     return bot.get_chat_member(message.chat.id, message.from_user.id).status in ['administrator', 'creator']
 
 
+def reload_settings():
+    global settings
+    try:
+        with open('settings.json') as file:
+            settings = json.loads(file.read())
+    except FileNotFoundError:
+        settings = dict(admins=[])
+
+
+def save_settings():
+    with open('settings.json', 'w') as file:
+        file.write(json.dumps(settings))
+
+
 def add_chat(message):
     text: str = message.text
     if text.isdigit():
@@ -96,6 +96,11 @@ def add_chat(message):
     else:
         msg = bot.reply_to(message, 'Неверный id чата')
     bot.register_next_step_handler(message, private_message)
+
+
+def chat_settings(message):
+    text = message.text
+    msg = bot.reply_to(message, f'Введите {text}')
 
 
 def add_admin(message):
@@ -130,9 +135,13 @@ def proceed_settings(message):
     elif message.text == 'Сохранить настройки':
         save_settings()
         msg = bot.reply_to(message, 'Настройки сохранены')
+        # TODO not come back to private_message
         bot.register_next_step_handler(msg, private_message)
     else:
-        ...
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add(*default.keys())
+        msg = bot.reply_to(message, f'Настройки чата {message.text}', reply_markup=markup)
+        bot.register_next_step_handler(msg, chat_settings)
 
 
 def private_message(message):
