@@ -89,13 +89,15 @@ def save_settings():
 
 
 def add_chat(message):
+    # TODO добавить кнопку отмены
     text: str = message.text
     if text.isdigit():
         settings[text] = default
         msg = bot.reply_to(message, f'Чат {text} добавлен, не забудьте сохранить настройки')
+        private_message(message)
     else:
         msg = bot.reply_to(message, 'Неверный id чата')
-    bot.register_next_step_handler(message, private_message)
+        proceed_settings(message, chat=True)
 
 
 def chat_settings(message):
@@ -108,13 +110,14 @@ def add_admin(message):
     if text.isdigit():
         settings['admins'].append(text)
         msg = bot.reply_to(message, f'Админ {text} добавлен, не забудьте сохранить настройки')
+        private_message(message)
     else:
         msg = bot.reply_to(message, 'Неверный id админа')
-    bot.register_next_step_handler(msg, private_message)
+        proceed_admin(message, force=True)
 
 
-def proceed_admin(message):
-    if message.text == 'Добавить админа':
+def proceed_admin(message, force=False):
+    if message.text == 'Добавить админа' or force:
         msg = bot.reply_to(message, 'Введите id админа')
         bot.register_next_step_handler(msg, add_admin)
     else:
@@ -123,20 +126,19 @@ def proceed_admin(message):
         msg = bot.reply_to(message, f'Настройка админа {message.text}', reply_markup=markup)
 
 
-def proceed_settings(message):
+def proceed_settings(message, chat=False):
     if message.text == 'admins':
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         markup.add(*settings.get('admins', []))
         msg = bot.reply_to(message, 'Добавить админа', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_admin)
-    elif message.text == 'Добавить чат':
+    elif message.text == 'Добавить чат' or chat:
         msg = bot.reply_to(message, 'Введите id чата')
         bot.register_next_step_handler(msg, add_chat)
     elif message.text == 'Сохранить настройки':
         save_settings()
         msg = bot.reply_to(message, 'Настройки сохранены')
-        # TODO not come back to private_message
-        bot.register_next_step_handler(msg, private_message)
+        private_message(message)
     else:
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         markup.add(*default.keys())
