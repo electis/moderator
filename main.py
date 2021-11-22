@@ -89,11 +89,12 @@ def save_settings():
 
 
 def add_chat(message):
-    # TODO добавить кнопку отмены
     text: str = message.text
     if text.isdigit():
         settings[text] = default
         msg = bot.reply_to(message, f'Чат {text} добавлен, не забудьте сохранить настройки')
+        private_message(message)
+    elif text == 'Отмена':
         private_message(message)
     else:
         msg = bot.reply_to(message, 'Неверный id чата')
@@ -116,24 +117,42 @@ def add_admin(message):
         proceed_admin(message, force=True)
 
 
+def del_admin(message):
+    text: str = message.text
+    if text.startswith('Удалить '):
+        admin = text[8:]
+        settings['admins'].remove(admin)
+        msg = bot.reply_to(message, f'Админ {admin} удалён, не забудьте сохранить настройки')
+        private_message(message)
+    else:
+        private_message(message)
+
+
 def proceed_admin(message, force=False):
     if message.text == 'Добавить админа' or force:
-        msg = bot.reply_to(message, 'Введите id админа')
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add('Отмена')
+        msg = bot.reply_to(message, 'Введите id админа', reply_markup=markup)
         bot.register_next_step_handler(msg, add_admin)
+    elif message.text == 'Отмена':
+        private_message(message)
     else:
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add('Удалить', 'Назад')
+        markup.add(f'Удалить {message.text}', 'Отмена')
         msg = bot.reply_to(message, f'Настройка админа {message.text}', reply_markup=markup)
+        bot.register_next_step_handler(msg, del_admin)
 
 
 def proceed_settings(message, chat=False):
     if message.text == 'admins':
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*settings.get('admins', []))
-        msg = bot.reply_to(message, 'Добавить админа', reply_markup=markup)
+        markup.add(*settings.get('admins', []), 'Добавить админа', 'Отмена')
+        msg = bot.reply_to(message, 'Админы', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_admin)
     elif message.text == 'Добавить чат' or chat:
-        msg = bot.reply_to(message, 'Введите id чата')
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add('Отмена')
+        msg = bot.reply_to(message, 'Введите id чата', reply_markup=markup)
         bot.register_next_step_handler(msg, add_chat)
     elif message.text == 'Сохранить настройки':
         save_settings()
