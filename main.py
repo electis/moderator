@@ -38,6 +38,8 @@ url_regex = r"\b((?:https?://)?(?:(?:www\.)?" \
             r"(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])))" \
             r"(?::[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])?(?:/[\w\.-]*)*/?)\b"
 
+temp = dict()
+
 
 @bot.message_handler(content_types=['left_chat_member'])
 def delete_leave_message(m):
@@ -102,23 +104,32 @@ def add_chat(message):
 
 
 def chat_settings(message):
-    # TODO передавать chat_id
     text = message.text
     if text == 'Отмена':
         private_message(message)
     else:
-        key, chat_id = message.text.split(' ')
+        key = message.text
+        temp[message.chat.id]['key'] = key
+        chat_id = temp[message.chat.id]['chat_id']
+        key_now = settings[chat_id].get(key)
+        if key == 'greeting_text':
+            additional = '(Можно использовать {username})'
+        else:
+            additional = ''
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         markup.add('Отмена')
-        msg = bot.reply_to(message, f'Введите {text}', reply_markup=markup)
+        msg = bot.reply_to(message, f'Введите {key} {additional}\nТекущий: {key_now}', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_chat)
+
 
 def proceed_chat(message):
     if message.text == 'Отмена':
         private_message(message)
     else:
-        settings[chat_id][key] = msg.text
-        msg = bot.reply_to(msg, f'{key} изменён, не забудьте сохранить настройки')
+        key = temp[message.chat.id]['key']
+        chat_id = temp[message.chat.id]['chat_id']
+        settings[chat_id][key] = message.text
+        msg = bot.reply_to(message, f'{key} изменён, не забудьте сохранить настройки')
         msg.text = chat_id
         proceed_settings(msg)
 
@@ -176,10 +187,11 @@ def proceed_settings(message, chat=False):
         msg = bot.reply_to(message, 'Настройки сохранены')
         private_message(message)
     else:
+        chat_id = message.text
+        temp[message.chat.id] = dict(chat_id=chat_id)
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        keys = [f'{key} {message.text}' for key in default.keys()]
-        markup.add(*keys, 'Отмена')
-        msg = bot.reply_to(message, f'Настройки чата {message.text}', reply_markup=markup)
+        markup.add(*default.keys(), 'Отмена')
+        msg = bot.reply_to(message, f'Настройки чата {chat_id}', reply_markup=markup)
         bot.register_next_step_handler(msg, chat_settings)
 
 
