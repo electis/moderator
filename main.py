@@ -102,14 +102,25 @@ def add_chat(message):
 
 
 def chat_settings(message):
-    # TODO передавать chat_id, сохранение настройки
+    # TODO передавать chat_id
     text = message.text
     if text == 'Отмена':
         private_message(message)
     else:
+        key, chat_id = message.text.split(' ')
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*default.keys(), 'Отмена')
+        markup.add('Отмена')
         msg = bot.reply_to(message, f'Введите {text}', reply_markup=markup)
+        bot.register_next_step_handler(msg, proceed_chat)
+
+def proceed_chat(message):
+    if message.text == 'Отмена':
+        private_message(message)
+    else:
+        settings[chat_id][key] = msg.text
+        msg = bot.reply_to(msg, f'{key} изменён, не забудьте сохранить настройки')
+        msg.text = chat_id
+        proceed_settings(msg)
 
 
 def add_admin(message):
@@ -166,7 +177,8 @@ def proceed_settings(message, chat=False):
         private_message(message)
     else:
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*default.keys(), 'Отмена')
+        keys = [f'{key} {message.text}' for key in default.keys()]
+        markup.add(*keys, 'Отмена')
         msg = bot.reply_to(message, f'Настройки чата {message.text}', reply_markup=markup)
         bot.register_next_step_handler(msg, chat_settings)
 
