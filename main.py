@@ -90,7 +90,7 @@ def save_settings():
 
 def add_chat(message):
     text: str = message.text
-    if text.isdigit():
+    if text.lstrip('-').isdigit():
         settings[text] = default
         msg = bot.reply_to(message, f'Чат {text} добавлен, не забудьте сохранить настройки')
         private_message(message)
@@ -102,8 +102,14 @@ def add_chat(message):
 
 
 def chat_settings(message):
+    # TODO передавать chat_id, сохранение настройки
     text = message.text
-    msg = bot.reply_to(message, f'Введите {text}')
+    if text == 'Отмена':
+        private_message(message)
+    else:
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup.add(*default.keys(), 'Отмена')
+        msg = bot.reply_to(message, f'Введите {text}', reply_markup=markup)
 
 
 def add_admin(message):
@@ -160,7 +166,7 @@ def proceed_settings(message, chat=False):
         private_message(message)
     else:
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*default.keys())
+        markup.add(*default.keys(), 'Отмена')
         msg = bot.reply_to(message, f'Настройки чата {message.text}', reply_markup=markup)
         bot.register_next_step_handler(msg, chat_settings)
 
