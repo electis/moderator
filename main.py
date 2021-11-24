@@ -231,4 +231,5 @@ def message(message):
 
 if __name__ == '__main__':
     reload_settings()
+    print('Moderator started')
     bot.infinity_polling()
