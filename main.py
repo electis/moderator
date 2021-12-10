@@ -204,7 +204,7 @@ def private_message(message):
         msg = bot.send_message(message.chat.id, 'Выберите настройку', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_settings)
     else:
-        bot.send_message(message.chat_id, 'You are not an admin')
+        bot.send_message(message.chat.id, 'You are not an admin')
 
 
 """
@@ -218,7 +218,8 @@ channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, pinned_message
 @bot.message_handler(func=lambda message: True, content_types=['audio', 'photo', 'voice', 'video', 'document',
                                                                'text', 'location', 'contact', 'sticker'])
 def message(message):
-    print(message.chat.id, message.content_type)
+    print(message.chat.id, message.content_type,
+          message.from_user.id, message.from_user.username, message.from_user.full_name)
     if message.chat.id > 0:
         private_message(message)
     elif not is_admin(message) and (
