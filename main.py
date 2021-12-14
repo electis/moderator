@@ -51,9 +51,29 @@ def delete_leave_message(m):
             print("Please make me an admin", exc)
 
 
-@bot.message_handler(content_types=['new_chat_members'])
-def delete_join_message(message):
-    """Новый пользователь в группе"""
+def check4bot2(message):
+    if message.text == '6':
+        new_member(message, first=False, good=True)
+    else:
+        new_member(message, first=False, good=False)
+
+
+def check4bot(message):
+    prefix = 'Проверка на бота: '
+    text = '2 + 2 * 2'
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+    markup.add('2', '4', '6', '8', '10')
+    msg = bot.send_message(message.chat.id, text=prefix + text,
+                           reply_to_message_id=message.message_id, reply_markup=markup)
+    try:
+        # удаляем сообщение о вступлении
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as exc:
+        print(exc)
+    bot.register_next_step_handler(msg, check4bot2)
+
+
+def greeting(message):
     chat_id = message.chat.id
     greeting = settings.get(str(chat_id)) or default
     greeting_text = greeting['greeting_text'].format(username=message.from_user.full_name)
@@ -61,7 +81,7 @@ def delete_join_message(message):
     greeting_timeout = greeting.get('greeting_timeout') or default['greeting_timeout']
     try:
         # удаляем сообщение о вступлении
-        bot.delete_message(chat_id, message.message_id)
+        # bot.delete_message(chat_id, message.message_id)
         if greeting_video:
             msg = bot.send_video(chat_id, greeting_video, caption=greeting_text)
         else:
@@ -70,6 +90,21 @@ def delete_join_message(message):
         t.start()
     except Exception as exc:
         print(exc)
+
+
+def ban(message):
+    bot.ban_chat_member(message.chat.id, message.from_user.id)
+
+
+@bot.message_handler(content_types=['new_chat_members'])
+def new_member(message, first=True, good=None):
+    """Новый пользователь в группе"""
+    if first:
+        check4bot(message)
+    elif good:
+        greeting(message)
+    else:
+        ban(message)
 
 
 def is_admin(message):
