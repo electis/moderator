@@ -1,3 +1,4 @@
+import logging
 import json
 import re
 from threading import Timer
@@ -24,6 +25,8 @@ main_admin = env.int('main_admin', default=None)
 restricted: set = set(env.list('restricted', default=['url', 'tag', 'photo', 'document', 'voice']))
 bot = telebot.TeleBot(env('bot_token'))
 
+logging.basicConfig(filename='moderator.log', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+
 tag_regex = "@[a-zA-Z]"
 url_regex = r"\b((?:https?://)?(?:(?:www\.)?" \
             r"(?:[\da-z\.-]+)\.(?:[a-z]{2,6})|(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}" \
@@ -48,7 +51,7 @@ def delete_leave_message(m):
             # удаляем сообщение о выходе
             bot.delete_message(m.chat.id, m.message_id)
         except Exception as exc:
-            print("Please make me an admin", exc)
+            logging.info(f"delete_leave_message: {exc}. Not admin?")
 
 
 @bot.message_handler(content_types=['new_chat_members'])
@@ -69,7 +72,7 @@ def delete_join_message(message):
         t = Timer(greeting_timeout, bot.delete_message, args=[msg.chat.id, msg.message_id])
         t.start()
     except Exception as exc:
-        print(exc)
+        logging.info(f"delete_join_message: {exc}. Not admin?")
 
 
 def is_admin(message):
@@ -196,6 +199,7 @@ def proceed_settings(message, chat=False):
 
 
 def private_message(message):
+    logging.info(f'private: {message.from_user.id}')
     admins = settings.get('admins', []) + [main_admin]
     if message.from_user.id in admins:
         # https://ru.stackoverflow.com/questions/1062669/%D0%95%D1%81%D1%82%D1%8C-%D0%BB%D0%B8-%D1%83-pytelegrambotapi-%D0%B0%D0%BD%D0%B0%D0%BB%D0%BE%D0%B3-conversationhandler-%D0%B8%D0%B7-python-telegram-bot
@@ -218,8 +222,8 @@ channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, pinned_message
 @bot.message_handler(func=lambda message: True, content_types=['audio', 'photo', 'voice', 'video', 'document',
                                                                'text', 'location', 'contact', 'sticker'])
 def message(message):
-    print(message.chat.id, message.content_type,
-          message.from_user.id, message.from_user.username, message.from_user.full_name)
+    logging.debug(f'{message.chat.id}, {message.content_type}, {message.from_user.id}, {message.from_user.username}, '
+                  f'{message.from_user.full_name}')
     if message.chat.id > 0:
         private_message(message)
     elif not is_admin(message) and (
@@ -232,5 +236,5 @@ def message(message):
 
 if __name__ == '__main__':
     reload_settings()
-    print('Moderator started')
+    logging.info('Moderator started')
     bot.infinity_polling()
