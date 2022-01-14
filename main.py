@@ -1,6 +1,7 @@
 import logging
 import json
 import re
+import sys
 from threading import Timer
 
 from environs import Env
@@ -26,6 +27,7 @@ restricted: set = set(env.list('restricted', default=['url', 'tag', 'photo', 'do
 bot = telebot.TeleBot(env('bot_token'))
 
 logging.basicConfig(filename='moderator.log', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
 tag_regex = "@[a-zA-Z]"
 url_regex = r"\b((?:https?://)?(?:(?:www\.)?" \
@@ -140,7 +142,7 @@ def proceed_chat(message):
 def add_admin(message):
     text: str = message.text
     if text.isdigit():
-        settings['admins'].append(text)
+        settings['admins'].append(int(text))
         msg = bot.reply_to(message, f'Админ {text} добавлен, не забудьте сохранить настройки')
         private_message(message)
     else:
@@ -177,7 +179,8 @@ def proceed_admin(message, force=False):
 def proceed_settings(message, chat=False):
     if message.text == 'admins':
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*settings.get('admins', []), 'Добавить админа', 'Отмена')
+        admins = [str(admin) for admin in settings.get('admins', [])]
+        markup.add(*admins, 'Добавить админа', 'Отмена')
         msg = bot.reply_to(message, 'Админы', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_admin)
     elif message.text == 'Добавить чат' or chat:
@@ -199,15 +202,16 @@ def proceed_settings(message, chat=False):
 
 
 def private_message(message):
-    logging.info(f'private: {message.from_user.id}')
     admins = settings.get('admins', []) + [main_admin]
     if message.from_user.id in admins:
         # https://ru.stackoverflow.com/questions/1062669/%D0%95%D1%81%D1%82%D1%8C-%D0%BB%D0%B8-%D1%83-pytelegrambotapi-%D0%B0%D0%BD%D0%B0%D0%BB%D0%BE%D0%B3-conversationhandler-%D0%B8%D0%B7-python-telegram-bot
+        logging.info(f'private: {message.from_user.id} is admin')
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         markup.add(*settings.keys(), 'Добавить чат', 'Сохранить настройки')
         msg = bot.send_message(message.chat.id, 'Выберите настройку', reply_markup=markup)
         bot.register_next_step_handler(msg, proceed_settings)
     else:
+        logging.info(f'private: {message.from_user.id} not an admin')
         bot.send_message(message.chat.id, 'You are not an admin')
 
 
