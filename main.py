@@ -10,19 +10,19 @@ from telebot import types
 
 env = Env()
 env.read_env()
+main_admin = env.int('main_admin', default=None)
 
 settings = {
     '-1001749011309': dict(greeting_text="Здравствуй {username}, очень рады тебя приветствовать в нашем чате.",
                            greeting_video='https://telegra.ph/file/4a150e0856f8c20ca65ea.mp4',
                            greeting_timeout=10),
-    'admins': ['403662105']
+    'admins': [main_admin] if main_admin else []
 }
 default = dict(
     greeting_text=env('greeting_text'),
     greeting_video=env('greeting_video', default=None),
     greeting_timeout=env.int('greeting_timeout', default=60),
 )
-main_admin = env.int('main_admin', default=None)
 restricted: set = set(env.list('restricted', default=['url', 'tag', 'photo', 'document', 'voice']))
 bot = telebot.TeleBot(env('bot_token'))
 
@@ -153,7 +153,7 @@ def add_admin(message):
 def del_admin(message):
     text: str = message.text
     if text.startswith('Удалить '):
-        admin = text[8:]
+        admin = int(text[8:])
         settings['admins'].remove(admin)
         msg = bot.reply_to(message, f'Админ {admin} удалён, не забудьте сохранить настройки')
         private_message(message)
