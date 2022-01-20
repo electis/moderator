@@ -61,20 +61,29 @@ def delete_join_message(message):
     """Новый пользователь в группе"""
     chat_id = message.chat.id
     greeting = settings.get(str(chat_id)) or default
-    greeting_text = greeting['greeting_text'].format(username=message.from_user.full_name)
+    user = message.json["new_chat_member"]
+    username = f'<a href="tg://user?id={user["id"]}">{user["first_name"]}</a>'
+    greeting_text = greeting['greeting_text'].format(username=username)
+    # .replace("_", "\\_").replace("*", "\\*").replace("`", "\\`").replace(".", "\\.")
+    # .replace("]", "\\]").replace("(", "\\(").replace(")", "\\)").replace("[", "\\[")
     greeting_video = greeting.get('greeting_video')
     greeting_timeout = greeting.get('greeting_timeout') or default['greeting_timeout']
+
     try:
         # удаляем сообщение о вступлении
         bot.delete_message(chat_id, message.message_id)
+    except Exception as exc:
+        logging.info(f"delete_join_message: {exc}. Not admin?")
+
+    try:
         if greeting_video:
-            msg = bot.send_video(chat_id, greeting_video, caption=greeting_text)
+            msg = bot.send_video(chat_id, greeting_video, caption=greeting_text, parse_mode='HTML')
         else:
-            msg = bot.send_message(chat_id, text=greeting_text)
+            msg = bot.send_message(chat_id, text=greeting_text, parse_mode='HTML')
         t = Timer(greeting_timeout, bot.delete_message, args=[msg.chat.id, msg.message_id])
         t.start()
     except Exception as exc:
-        logging.info(f"delete_join_message: {exc}. Not admin?")
+        logging.info(f"greeting message: {exc}")
 
 
 def is_admin(message):
